@@ -9,15 +9,19 @@
 #define DIST_MODE  3
 #define CAL_MODE   4
 
-typedef struct Treadmill* Treadmill;
+class Treadmill{
+	public:
+	    Treadmill(MyThreadController* threadController);
+            float getCurrentSpeed();
+            float getTargetSpeed();
+            float incrementSpeed();
+            float decrementSpeed();
+};
 
-float incrementSpeed(Treadmill* treadmill);
-float decrementSpeed(Treadmill* treadmill);
-
-int _analogSpeed(Treadmill* treadmill);
-void start(Treadmill* treadmill);
-void stop(Treadmill* treadmill);
-
+void initialize();
 void _refresh();
+int _analogSpeed();
+void start();
+void stop();
 
 #endif

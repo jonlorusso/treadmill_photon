@@ -12,17 +12,23 @@
 #define DIST_MODE   3
 #define CAL_MODE    4
 
-typedef struct Display* Display;
+class Display{
+    public:
+        Display(MyThreadController* threadController);
 
-void setMode(Display* display, int mode);
-void setChar(Display* display, int digitNum, char c, boolean decimal);
-void setChars(Display* display, String chars, boolean decimals[4]);
+};
 
-void _setDigitCode(Display* display, int digitNum, byte digitCode);
-void _setLedState(Display* display, int ledNum, boolean state);
+void _initialize();
 
-void _refreshLeds(Display* display);
-void _refreshDigits(Display* display);
+void setMode(int mode);
+void setChar(int digitNum, char c, boolean decimal);
+void setChars(String chars, boolean decimals[4]);
+
+void _setDigitCode(int digitNum, byte digitCode);
+void _setLedState(int ledNum, boolean state);
+
+void _refreshLeds();
+void _refreshDigits();
 void _refresh();
 
 #endif

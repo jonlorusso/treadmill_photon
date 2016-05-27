@@ -39,16 +39,16 @@ void setup() {
     _countdownThread->enabled = false;
     _threadController->add(_countdownThread);
 
-    _startStopButton = new_button(START_STOP_BUTTON);
+    _startStopButton = Button(START_STOP_BUTTON);
     _initializeThread(_startStopButtonThread, _checkStartStop, 1);
 
-    _incButton = new_button(INC_BUTTON);
+    _incButton = Button(INC_BUTTON);
     _initializeThread(_incButtonThread, _checkInc, 1);
 
-    _decButton = new_button(DEC_BUTTON);
+    _decButton = Button(DEC_BUTTON);
     _initializeThread(_decButtonThread, _checkDec, 1);
 
-    _modeButton = new_button(MODE_BUTTON);
+    _modeButton = Button(MODE_BUTTON);
     _initializeThread(_modeButtonThread, _checkMode, 1);
 
     //_killSwitch = Button(KILL_SWITCH, myThreadController, _checkKill);
@@ -100,7 +100,7 @@ void _stop() {
 
 void _checkStartStop() {
     if (_safe) {
-        if ( is_pressed(_startStopButton) ) {
+        if ( _startStopButton->isPressed() ) {
             _running ? _stop() : _start();
         }
     }
@@ -108,7 +108,7 @@ void _checkStartStop() {
 
 void _checkInc() {
     if ( _safe && _running ) {
-        if ( is_pressed(_incButton) ) {
+        if ( _incButton->isPressed() ) {
              _mode = SPEED_MODE;
             _display->setMode(SPEED_MODE);
             _treadmill->incrementSpeed();
@@ -118,7 +118,7 @@ void _checkInc() {
 
 void _checkDec() {
     if ( _safe && _running ) {
-        if ( is_pressed(_decButton) ) {
+        if ( _decButton->isPressed() ) {
             _mode = SPEED_MODE;
             _display->setMode(SPEED_MODE);
             _treadmill->decrementSpeed();
@@ -128,7 +128,7 @@ void _checkDec() {
 
 void _checkMode() {
     if (_safe && _running) {
-        if ( is_pressed(_modeButton) ) {
+        if ( _modeButton->isPressed() ) {
             _mode = ( _mode + 1 ) % 5;
             _display->setMode(SPEED_MODE);
             _treadmill->decrementSpeed();
