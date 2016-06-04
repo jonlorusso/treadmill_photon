@@ -20,16 +20,18 @@
 #define TIME_LED          TOPLEFT
 #define DIST_LED          BOTTOMLEFT
 #define CAL_LED           BOTTOM
-#define LEDS              A4
 
+#define LEDS              A4
+#define BUZZER            A5
 #define KILL_SWITCH       A6
+#define BUTTONS           WKP
+
 #define START_STOP_BUTTON DECIMAL
 #define DEC_BUTTON        MIDDLE
 #define INC_BUTTON        BOTTOMLEFT
 #define MODE_BUTTON       TOPLEFT
-#define BUTTONS           WKP
 
-#define BUZZER            A5
+
 #define TREADMILL         24
 
 #endif

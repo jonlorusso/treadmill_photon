@@ -1,7 +1,8 @@
-#include "TreadmillThread.h"
-#include "MyThreadController.h"
-#include "MyThread.h"
+#include "Treadmill.h"
 #include "Pins.h"
+#include "Particle.h"
+
+#define SPEED_UPDATE_FREQUENCY 100
 
 #define INCREMENT 0.1
 
@@ -10,48 +11,55 @@
 #define MIN_SPEED 0.6
 #define MAX_SPEED 6.0
 
-TreadmillThread::TreadmillThread(MyThreadController* threadController): MyThread() {
+Treadmill::Treadmill() : _timer(SPEED_UPDATE_FREQUENCY,  &Treadmill::update, *this) {
     pinMode(TREADMILL, OUTPUT);
-
     _currentSpeed = STOP_SPEED;
     _targetSpeed = STOP_SPEED;
-
-    //_thread->setInterval(100); change to this?
-    threadController->add(this);
+    _timer.start();
 }
 
-float TreadmillThread::getCurrentSpeed() {
+int Treadmill::getRuntimeInMillis() {
+    //return (_stopTime || Time.now()) - _startTime;
+    return millis() - _startTime;
+}
+
+float Treadmill::getCurrentSpeed() {
     return _currentSpeed;
 }
 
-float TreadmillThread::getTargetSpeed() {
+float Treadmill::getTargetSpeed() {
     return _targetSpeed;
 }
 
-float TreadmillThread::incrementSpeed() {
+float Treadmill::incrementSpeed() {
     _targetSpeed = _targetSpeed + INCREMENT;
     return _targetSpeed;
 }
 
-float TreadmillThread::decrementSpeed() {
+float Treadmill::decrementSpeed() {
     _targetSpeed = _targetSpeed - INCREMENT;
     return _targetSpeed;
 }
 
-void TreadmillThread::start() {
+void Treadmill::start() {
+    _startTime = millis();
+    // TODO record start time and add method to get time running
+    // TODO record distance
+    // TODO record calories 
     _targetSpeed = START_SPEED;
 }
 
 // FIXME this will lead to an abrupt stop
-void TreadmillThread::stop() {
+void Treadmill::stop() {
+    _stopTime = Time.now();
     _targetSpeed = STOP_SPEED;
 }
 
-int TreadmillThread::_analogSpeed() {
+int Treadmill::_analogSpeed() {
     return (int)map((long)(_currentSpeed * 10), 0, 100, 255, 0);
 }
 
-void TreadmillThread::run() {
+void Treadmill::update() {
     if ( _currentSpeed < _targetSpeed ) {
         _currentSpeed = _currentSpeed + INCREMENT;
     } else {
@@ -60,9 +68,9 @@ void TreadmillThread::run() {
         }
     }
 
-    analogWrite(TREADMILL, _analogSpeed());
+    _currentSpeed = constrain(_currentSpeed, STOP_SPEED, MAX_SPEED);
 
-    MyThread::run();
+//    analogWrite(TREADMILL, _analogSpeed());
 }
 
 //boolean validSpeed(int speed) {

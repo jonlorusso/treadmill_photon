@@ -1,12 +1,10 @@
-#include "ButtonThread.h"
-#include "DisplayThread.h"
-#include "TreadmillThread.h"
-
-#include "MyThreadController.h"
-#include "MyThread.h"
+#include "Button.h"
+#include "Display.h"
+#include "Treadmill.h"
 
 #include "Pins.h"
 
+#define NINE_MINUTES 9 * 60
 #define DEFAULT_INTERVAL 1
 
 #define SCAN_MODE  0
@@ -15,75 +13,67 @@
 #define DIST_MODE  3
 #define CAL_MODE   4
 
-MyThreadController* _threadController;
+Timer scanTimer(5000, _scan);
+Timer countdownTimer(1, _countdown);
 
-MyThread* _countdownThread;
-MyThread* _updateTextThread;
-MyThread* _updateModeThread;
-MyThread* _scanThread;
+Button* _startStopButton = new Button(START_STOP_BUTTON, _checkStartStop);
+Button* _incButton = new Button(INC_BUTTON, _checkInc);
+Button* _decButton = new Button(DEC_BUTTON, _checkDec);
+Button* _modeButton = new Button(MODE_BUTTON, _checkMode);
 
-DisplayThread* _display;
-TreadmillThread* _treadmill;
-ButtonThread* _startStopButton;
-ButtonThread* _incButton;
-ButtonThread* _decButton;
-ButtonThread* _modeButton;
+Display* _display = new Display();
+Treadmill* _treadmill = new Treadmill();
 
-int _mode, _scanMode;
-boolean _starting, _running;
+enum state {
+  unsafe,
+  engaging,
+  safe,
+  starting,
+  running,
+  stopping
+};
+state _state = unsafe;
+
+int _showClock = false;
+int _scanMode = SPEED_MODE;
+int _mode;
 int _countdownCounter;
 
-bool _isSafe() {
-    return ( digitalRead( KILL_SWITCH ) == LOW );
-}
-
-void _initializeThread(MyThread* thread, void (*callback)(void), unsigned long _interval) {
-    thread = new MyThread();
-    thread->onRun(callback);
-    thread->setInterval(_interval);
-    _threadController->add(thread);
-}
 
 void setup() {
-    _running = false;
-    _starting = false;
+    Time.zone(0.5);
+    Particle.syncTime();
+    Serial.begin(9600);
 
-    pinMode(LEDS, OUTPUT);
     pinMode(BUTTONS, OUTPUT);
-
-    _threadController = new MyThreadController();
-
-    _display = new DisplayThread(_threadController);
-    _treadmill = new TreadmillThread(_threadController);
-
-//    _startStopButton = new ButtonThread(START_STOP_BUTTON, _checkStartStop, _threadController);
-//    _incButton = new ButtonThread(INC_BUTTON, _checkInc, _threadController);
-//    _decButton = new ButtonThread(DEC_BUTTON, _checkDec, _threadController);
-//    _modeButton = new ButtonThread(MODE_BUTTON, _checkMode, _threadController);
-
-//    _updateTextThread = new MyThread();
-    _initializeThread(_updateTextThread, _updateText, DEFAULT_INTERVAL);
-
-    //_updateModeThread = new MyThread();
-    _initializeThread(_updateModeThread, _updateMode, DEFAULT_INTERVAL);
-
-    //_scanThread = new MyThread();
-    _initializeThread(_scanThread, _scan, 5000); // flip mode every 2 seconds while scanning
-
-    _countdownThread = new MyThread();
-    _countdownThread->enabled = false;
-    _threadController->add(_countdownThread);
-
-//    pinMode(KILL_SWITCH, INPUT_PULLUP);
-    //_killSwitch = Button(KILL_SWITCH, _threadController, _checkKill);
     pinMode(KILL_SWITCH, INPUT_PULLUP);
-    attachInterrupt(KILL_SWITCH, _checkKill, CHANGE);
 
-    pinMode(START_STOP_BUTTON, INPUT_PULLUP);
-    attachInterrupt(START_STOP_BUTTON, _checkStartStop, CHANGE);
-    // need interrupt
+    scanTimer.start();
+//    attachInterrupt(KILL_SWITCH, _checkKill, CHANGE);
 
-    _running = false;
+    Particle.function("wifiCommand", wifiCommand);
+}
+
+int wifiCommand(String command) {
+  if ( command == "CLOCK" ) 
+    _showClock = !_showClock;
+
+  if ( command == "START" )
+    _checkStartStop();
+
+  if ( command == "STOP" )
+    _checkStartStop();
+
+  if ( command == "INC" )
+    _checkInc();
+
+  if ( command == "DEC" )
+    _checkDec();
+
+  if ( command == "MODE" )
+    _checkMode();
+
+  return 1;
 }
 
 bool _isScanning() {
@@ -91,46 +81,41 @@ bool _isScanning() {
 }
 
 void _scan() {
-    if ( _isSafe() && _running && _isScanning() ) 
+    if ( _state == running && _isScanning() ) 
         _scanMode = (_scanMode % 4) + 1;
 }
 
 void _setSpeed() {
-    float speed = _treadmill->getCurrentSpeed();
-
-    char integer[2], decimal[2];
-  
-    sprintf( integer, "%d", (int)speed);
-    sprintf( decimal, "%d", ((int)(speed * 10)) % 10);
-
-    _display->setChar(0, ' ', false);
-    _display->setChar(1, ' ', false);
-    _display->setChar(2, integer[0], true);
-    _display->setChar(3, decimal[0], false);
+  _display->setChars(String::format( "%5.1f", _treadmill->getCurrentSpeed() ));
 }
 
-// FIXME
-void _setTime() {
-    int time = millis() / 1000;
-    char c[2];
-  
-    int m = 1000;
-    for ( int i = 0; i < 4; i++ ) {
-        sprintf( c, "%d", time / m); 
-        time = time - ( ( time / m ) * m );
-        m = m / 10; 
-        _display->setChar(0, c[0], false);
-    } 
+void _setTimeHourMinute(int time) {
+    _display->setChars(
+        String::format("%02d%s%02d", 
+          Time.hour(time / 1000),
+          time % 1000 > 500 ? "." : "",
+          Time.minute(time / 1000)));
+}
+
+void _setTimeMinuteSecond(int time) {
+    _display->setChars(
+        String::format("%02d%s%02d", 
+          Time.minute(time / 1000),
+          time % 1000 > 500 ? "." : "",
+          Time.second(time / 1000)));
 }
 
 // FIXME
 void _setDist() {
-    _setSpeed();
+  float x = _treadmill->getCurrentSpeed() + 2.3;
+  _display->setNumber(x);
 }
 
 // FIXME
 void _setCal() {
-    _setSpeed();
+  float x = _treadmill->getCurrentSpeed() + 1.7;
+  int y = (int)(x * 10);
+  _display->setNumber(y);
 }
 
 int _getMode() {
@@ -138,42 +123,29 @@ int _getMode() {
 }
 
 void _updateText() {
-    bool decimals[4] = { false, false, false, false };
-    if ( _isSafe() && _running ) {
-        if ( _getMode() == SPEED_MODE ) {
-            _display->setChars("SPED", decimals);
-      //      _setSpeed();
-        }
-        if ( _getMode() == TIME_MODE ) {
-            _display->setChars("TIME", decimals);
-      //      _setTime();
-        }
-        if ( _getMode() == DIST_MODE ) {
-            _display->setChars("dISt", decimals);
-      //      _setDist();
-        }
-        if ( _getMode() == CAL_MODE ) {
-            _display->setChars("cALS", decimals);
-       //     _setCal();
-        }
-    } else {
-        if ( _isSafe() ) {
-            if ( _starting ) {
-                char countdown[4];
-                sprintf( countdown, "%*d", 4, _countdownCounter );
-                _display->setChars( countdown, decimals);
-            } else {
-                //_setSafeDigits();
-                _display->setChars( "poop", decimals );
-//                _display->setChar(0, '-', true);
-//                _display->setChar(1, '-', true);
-//                _display->setChar(2, '-', true);
-//                _display->setChar(3, '-', true);
-            }
-        } else {
-            bool decimals[4] = { false, false, false, false };
-            _display->setChars( "SAFE", decimals );
-        }
+    if ( _showClock ) {
+        _setTimeHourMinute((Time.local() - ( NINE_MINUTES ) ) * 1000 + ( millis() % 1000 ));
+    } else if ( _state == running ) {
+      if ( _getMode() == SPEED_MODE ) {
+        _setSpeed();
+      }
+      if ( _getMode() == TIME_MODE ) {
+        _setTimeMinuteSecond(_treadmill->getRuntimeInMillis());
+      }
+      if ( _getMode() == DIST_MODE ) {
+        _setDist();
+      }
+      if ( _getMode() == CAL_MODE ) {
+        _setCal();
+      }
+    } else if ( _state == starting ) {
+        _display->setNumber(_countdownCounter);
+    } else if ( _state == engaging ) {
+        _display->setChars( "0.0.0.0." );
+    } else if ( _state == safe ) {
+        _display->setChars("-.-.-.-.");
+    } else if ( _state == unsafe ) {
+       _display->setChars( "SAFE" );
     }
 }
 
@@ -181,86 +153,109 @@ void _updateMode() {
     for ( int i = 0; i < 5; i++ )
         _display->setLedState(i, false);
 
-    if ( _isSafe() && _running ) {
+    if ( _state == running ) {
         _display->setLedState( SCAN_MODE, _isScanning() );
         _display->setLedState( _getMode(), true );
-    }
-}
-
-void loop() {
-    _threadController->run();
-}
-
-void _setSafeDigits() {
-    _display->setChar(0, '-', true);
-    _display->setChar(1, '-', true);
-    _display->setChar(2, '-', true);
-    _display->setChar(3, '-', true);
-}
-
-void _startTreadmillCountdown() {
-    if ( _countdownCounter > 1 ) {
-        _countdownCounter = _countdownCounter - 1;
-    } else {
-        _countdownThread->enabled = false;
-        _running = true;
-        _starting = false;
-        _mode = SPEED_MODE;
-        _treadmill->start();
-    }
-}
-
-void _start() {
-    if ( _isSafe() && !_running && !_starting) {
-        _starting = true;
-        _countdownCounter = 4;
-        _countdownThread->onRun(_startTreadmillCountdown);
-        _countdownThread->setInterval(1000);
-        _countdownThread->enabled = true;
-    }
-}
-
-void _stop() {
-    _starting = false;
-    _countdownThread->enabled = false;
-    _running = false;
-    _treadmill->stop();
-}
-
-void _checkStartStop() {
-    digitalWrite(LEDS, HIGH);
-    if ( _isSafe() ) {
-        if ( !_running && !_starting ) {
-            _start();
-        } else {
-            _stop();
+    } else if ( _state == engaging ) {
+        for (int i = 0; i < 5; i++) {
+            _display->setLedState(i, true);
         }
     }
 }
 
+void _assertStopped() {
+    switch ( _state ) {
+        case unsafe:
+        case engaging:
+        case safe:
+        case starting:
+          _treadmill->stop();
+          break;
+    }
+}
+
+void loop() {
+    _updateMode();
+    _updateText();
+    _checkKill();
+
+    _assertStopped();
+
+    _display->refreshLeds();
+    _display->refreshDigits();
+}
+
+void (*_countdownCallback)(void);
+void (*_countdownCompleteCallback)(void);
+void _countdown() {
+      if ( _countdownCounter > 0 ) {
+          _countdownCounter = _countdownCounter - 1;
+          if (_countdownCallback) _countdownCallback();
+      } else {
+          countdownTimer.stop();
+          if (_countdownCompleteCallback) _countdownCompleteCallback();
+      }
+}
+
+void _setupCountdown(int count, int period, void (*onCompleteCallback)(void)) {
+  _countdownCounter = count;
+  _countdownCompleteCallback = onCompleteCallback;
+  countdownTimer.changePeriod(period);
+  countdownTimer.start();
+}
+
+void _start() {
+  _treadmill->start();
+  _state = running;
+  _mode = SPEED_MODE;
+}
+
+void _stop() {
+    _state = safe;
+    _treadmill->stop();
+}
+
+void _checkStartStop() {
+    if ( _state == safe ) {
+        _state = starting;
+        _setupCountdown(3, 1000, _start);
+    } else if ( _state == running  || _state == starting ) {
+        _stop();
+    }
+}
+
 void _checkInc() {
-    if ( _isSafe() && _running ) {
+    if ( _state == running ) {
         _mode = SPEED_MODE;
         _treadmill->incrementSpeed();
     }
 }
 
 void _checkDec() {
-    if ( _isSafe() && _running ) {
+    if ( _state == running ) {
         _mode = SPEED_MODE;
         _treadmill->decrementSpeed();
     }
 }
 
 void _checkMode() {
-    if ( _isSafe() && _running ) {
-        _mode = ( _mode + 1 ) % 5;
-    }
+    _mode = ( _mode + 1 ) % 5;
+}
+
+void _engage() {
+  _state = safe;
 }
 
 void _checkKill() {
-    if ( !_isSafe() ) {
+    if ( !_isSafe() && _state != unsafe ) {
         _stop();
+        _state = unsafe;
+    } else if ( _isSafe() && _state == unsafe ) {
+        _state = engaging;
+        _setupCountdown(5, 400, _engage);
     }
 }
 
+bool _isSafe() {
+    return ( digitalRead( KILL_SWITCH ) == LOW );
+}
