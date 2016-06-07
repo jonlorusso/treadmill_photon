@@ -2,20 +2,20 @@
 #define Button_h
 
 #include "Pins.h"
-#include "Particle.h"
 
 #define DEBOUNCE_TIME 200000
-#define BUTTON_POLL 10
+
+enum buttonType { bNONE, bSTART_STOP, bINC, bDEC, bMODE };
 
 class Button {
 public:
-	Button(int pin, void (*callback)(void));
-	void poll();
+	Button(int pin, buttonType type);
+	bool poll();
+        buttonType type;
 private:
 	int _pin;
-	void (*_callback)(void);
 	long _lastRead;
-	Timer _timer;
+	bool _lastValue;
 };
 
 #endif
